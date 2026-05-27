@@ -13,9 +13,10 @@ import type { Todo } from "@/types/todo";
 type TodoItemProps = {
   todo: Todo;
   index: number;
+  onSuccess?: (message: string) => void;
 };
 
-export default function TodoItem({ todo, index }: TodoItemProps) {
+export default function TodoItem({ todo, index, onSuccess }: TodoItemProps) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const [isEditing, setIsEditing] = useState(false);
@@ -41,13 +42,18 @@ export default function TodoItem({ todo, index }: TodoItemProps) {
     }
   }, [todo.title, isEditing]);
 
-  function refreshOnSuccess(result: { error?: string; success?: boolean }) {
+  function refreshOnSuccess(result: { error?: string; success?: boolean; message?: string }) {
     if (result.error) {
       setError(result.error);
       return;
     }
 
     setError(null);
+
+    if (result.message) {
+      onSuccess?.(result.message);
+    }
+
     router.refresh();
   }
 
@@ -68,6 +74,10 @@ export default function TodoItem({ todo, index }: TodoItemProps) {
         setCompleted(previousCompleted);
         setError(result.error);
         return;
+      }
+
+      if (result.message) {
+        onSuccess?.(result.message);
       }
 
       router.refresh();

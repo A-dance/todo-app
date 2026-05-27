@@ -1,21 +1,31 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useActionState, useEffect } from "react";
+import { useActionState, useEffect, useRef } from "react";
 import { createTodoAction } from "@/actions/todos";
 
-export default function TodoForm() {
+type TodoFormProps = {
+  onSuccess?: (message: string) => void;
+};
+
+export default function TodoForm({ onSuccess }: TodoFormProps) {
   const router = useRouter();
+  const formRef = useRef<HTMLFormElement>(null);
   const [state, formAction, pending] = useActionState(createTodoAction, null);
 
   useEffect(() => {
     if (state?.success) {
+      formRef.current?.reset();
       router.refresh();
+
+      if (state.message) {
+        onSuccess?.(state.message);
+      }
     }
-  }, [state, router]);
+  }, [state, router, onSuccess]);
 
   return (
-    <form action={formAction} className="flex flex-col gap-2 sm:flex-row">
+    <form ref={formRef} action={formAction} className="flex flex-col gap-2 sm:flex-row">
       <input
         type="text"
         name="title"

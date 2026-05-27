@@ -5,7 +5,7 @@ import { logger } from "@/lib/logger";
 import { validateTodoTitle } from "@/lib/todo-utils";
 import { createClient } from "@/lib/supabase/server";
 
-type ActionResult = { error?: string; success?: boolean };
+export type TodoActionResult = { error?: string; success?: boolean; message?: string };
 
 /** RLS に加え、アプリ側でも user_id を明示して二重に所有者を検証する。 */
 async function getAuthenticatedUserId(): Promise<string | null> {
@@ -18,9 +18,9 @@ async function getAuthenticatedUserId(): Promise<string | null> {
 }
 
 export async function createTodoAction(
-  _prev: ActionResult | null,
+  _prev: TodoActionResult | null,
   formData: FormData
-): Promise<ActionResult> {
+): Promise<TodoActionResult> {
   const validation = validateTodoTitle(String(formData.get("title") ?? ""));
 
   if (!validation.ok) {
@@ -47,14 +47,17 @@ export async function createTodoAction(
     }
 
     revalidatePath("/todos");
-    return { success: true };
+    return { success: true, message: "登録しました。" };
   } catch (error) {
     logger.error("createTodoAction", error);
     return { error: "TODO の追加中にエラーが発生しました。" };
   }
 }
 
-export async function updateTodoTitleAction(todoId: string, title: string): Promise<ActionResult> {
+export async function updateTodoTitleAction(
+  todoId: string,
+  title: string
+): Promise<TodoActionResult> {
   const validation = validateTodoTitle(title);
 
   if (!validation.ok) {
@@ -81,7 +84,7 @@ export async function updateTodoTitleAction(todoId: string, title: string): Prom
     }
 
     revalidatePath("/todos");
-    return { success: true };
+    return { success: true, message: "更新しました。" };
   } catch (error) {
     logger.error("updateTodoTitleAction", error, { todoId });
     return { error: "TODO の更新中にエラーが発生しました。" };
@@ -91,7 +94,7 @@ export async function updateTodoTitleAction(todoId: string, title: string): Prom
 export async function toggleTodoCompletedAction(
   todoId: string,
   completed: boolean
-): Promise<ActionResult> {
+): Promise<TodoActionResult> {
   try {
     const supabase = await createClient();
     const userId = await getAuthenticatedUserId();
@@ -112,14 +115,17 @@ export async function toggleTodoCompletedAction(
     }
 
     revalidatePath("/todos");
-    return { success: true };
+    return {
+      success: true,
+      message: completed ? "完了にしました。" : "未完了に戻しました。",
+    };
   } catch (error) {
     logger.error("toggleTodoCompletedAction", error, { todoId, completed });
     return { error: "完了状態の更新中にエラーが発生しました。" };
   }
 }
 
-export async function deleteTodoAction(todoId: string): Promise<ActionResult> {
+export async function deleteTodoAction(todoId: string): Promise<TodoActionResult> {
   try {
     const supabase = await createClient();
     const userId = await getAuthenticatedUserId();
@@ -136,7 +142,7 @@ export async function deleteTodoAction(todoId: string): Promise<ActionResult> {
     }
 
     revalidatePath("/todos");
-    return { success: true };
+    return { success: true, message: "削除しました。" };
   } catch (error) {
     logger.error("deleteTodoAction", error, { todoId });
     return { error: "TODO の削除中にエラーが発生しました。" };

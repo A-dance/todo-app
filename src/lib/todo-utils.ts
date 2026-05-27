@@ -21,3 +21,15 @@ export function countTodosByStatus(todos: { completed: boolean }[]) {
     activeCount: todos.length - completedCount,
   };
 }
+
+export function filterTodosByTitle<T extends { title: string }>(todos: T[], query: string): T[] {
+  const trimmed = query.trim();
+
+  if (!trimmed) {
+    return todos;
+  }
+
+  const normalized = trimmed.toLowerCase();
+
+  return todos.filter((todo) => todo.title.toLowerCase().includes(normalized));
+}
