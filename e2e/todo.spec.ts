@@ -20,16 +20,7 @@ test.describe("TODO アプリ E2E", () => {
 
     const todoInput = page.getByLabel("新しい TODO");
     await todoInput.fill(todoTitle);
-
-    const insertResponse = page.waitForResponse(
-      (response) =>
-        response.url().includes("/rest/v1/todos") && response.request().method() === "POST"
-    );
     await page.getByRole("button", { name: "追加" }).click();
-    const response = await insertResponse;
-
-    expect(response.status()).toBeGreaterThanOrEqual(200);
-    expect(response.status()).toBeLessThan(300);
 
     await expect(page.locator("li").filter({ hasText: todoTitle })).toBeVisible({
       timeout: 10_000,

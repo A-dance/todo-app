@@ -33,7 +33,7 @@ export default async function TodosPage() {
         <LogoutButton />
       </header>
 
-      <TodoList userId={user.id} initialTodos={todos ?? []} />
+      <TodoList initialTodos={todos ?? []} />
     </main>
   );
 }

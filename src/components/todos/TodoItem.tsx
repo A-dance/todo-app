@@ -1,34 +1,28 @@
 "use client";
 
-import { KeyboardEvent, useEffect, useRef, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { useRouter } from "next/navigation";
+import { KeyboardEvent, useEffect, useRef, useState, useTransition } from "react";
+import {
+  deleteTodoAction,
+  toggleTodoCompletedAction,
+  updateTodoTitleAction,
+} from "@/actions/todos";
+import { formatTodoDate } from "@/lib/format-date";
 import type { Todo } from "@/types/todo";
 
 type TodoItemProps = {
   todo: Todo;
-  userId: string;
   index: number;
-  onUpdated: () => void;
-  onDeleted: () => void;
 };
 
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleString("ja-JP", {
-    month: "numeric",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
-export default function TodoItem({ todo, userId, index, onUpdated, onDeleted }: TodoItemProps) {
-  const supabase = createClient();
+export default function TodoItem({ todo, index }: TodoItemProps) {
+  const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [title, setTitle] = useState(todo.title);
   const [completed, setCompleted] = useState(todo.completed);
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [pending, startTransition] = useTransition();
 
   useEffect(() => {
     setCompleted(todo.completed);
@@ -47,36 +41,41 @@ export default function TodoItem({ todo, userId, index, onUpdated, onDeleted }: 
     }
   }, [todo.title, isEditing]);
 
-  async function handleToggleCompleted() {
-    if (loading || isEditing) {
+  function refreshOnSuccess(result: { error?: string; success?: boolean }) {
+    if (result.error) {
+      setError(result.error);
+      return;
+    }
+
+    setError(null);
+    router.refresh();
+  }
+
+  function handleToggleCompleted() {
+    if (pending || isEditing) {
       return;
     }
 
     const nextCompleted = !completed;
     const previousCompleted = completed;
     setCompleted(nextCompleted);
-    setLoading(true);
     setError(null);
 
-    const { error: updateError } = await supabase
-      .from("todos")
-      .update({ completed: nextCompleted })
-      .eq("id", todo.id)
-      .eq("user_id", userId);
+    startTransition(async () => {
+      const result = await toggleTodoCompletedAction(todo.id, nextCompleted);
 
-    setLoading(false);
+      if (result.error) {
+        setCompleted(previousCompleted);
+        setError(result.error);
+        return;
+      }
 
-    if (updateError) {
-      setCompleted(previousCompleted);
-      setError(updateError.message);
-      return;
-    }
-
-    onUpdated();
+      router.refresh();
+    });
   }
 
   function startEditing() {
-    if (loading) {
+    if (pending) {
       return;
     }
     setError(null);
@@ -90,7 +89,7 @@ export default function TodoItem({ todo, userId, index, onUpdated, onDeleted }: 
     setIsEditing(false);
   }
 
-  async function handleSaveEdit() {
+  function handleSaveEdit() {
     const trimmedTitle = title.trim();
 
     if (!trimmedTitle) {
@@ -103,30 +102,22 @@ export default function TodoItem({ todo, userId, index, onUpdated, onDeleted }: 
       return;
     }
 
-    setLoading(true);
     setError(null);
 
-    const { error: updateError } = await supabase
-      .from("todos")
-      .update({ title: trimmedTitle })
-      .eq("id", todo.id)
-      .eq("user_id", userId);
+    startTransition(async () => {
+      const result = await updateTodoTitleAction(todo.id, trimmedTitle);
+      refreshOnSuccess(result);
 
-    setLoading(false);
-
-    if (updateError) {
-      setError(updateError.message);
-      return;
-    }
-
-    setIsEditing(false);
-    onUpdated();
+      if (!result.error) {
+        setIsEditing(false);
+      }
+    });
   }
 
   function handleEditKeyDown(event: KeyboardEvent<HTMLInputElement>) {
     if (event.key === "Enter") {
       event.preventDefault();
-      void handleSaveEdit();
+      handleSaveEdit();
     }
 
     if (event.key === "Escape") {
@@ -135,33 +126,21 @@ export default function TodoItem({ todo, userId, index, onUpdated, onDeleted }: 
     }
   }
 
-  async function handleDelete() {
-    if (loading || isEditing) {
+  function handleDelete() {
+    if (pending || isEditing) {
       return;
     }
 
-    setLoading(true);
     setError(null);
 
-    const { error: deleteError } = await supabase
-      .from("todos")
-      .delete()
-      .eq("id", todo.id)
-      .eq("user_id", userId);
-
-    setLoading(false);
-
-    if (deleteError) {
-      setError(deleteError.message);
-      return;
-    }
-
-    onDeleted();
+    startTransition(async () => {
+      refreshOnSuccess(await deleteTodoAction(todo.id));
+    });
   }
 
   return (
     <li className="space-y-1">
-      <p className="px-1 text-xs text-slate-400">登録: {formatDate(todo.created_at)}</p>
+      <p className="px-1 text-xs text-slate-400">登録: {formatTodoDate(todo.created_at)}</p>
 
       <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <div className="flex items-start gap-3">
@@ -173,8 +152,8 @@ export default function TodoItem({ todo, userId, index, onUpdated, onDeleted }: 
             <input
               type="checkbox"
               checked={completed}
-              onChange={() => void handleToggleCompleted()}
-              disabled={loading || isEditing}
+              onChange={handleToggleCompleted}
+              disabled={pending || isEditing}
               aria-label={completed ? "未完了に戻す" : "完了にする"}
               className="h-5 w-5 cursor-pointer rounded border-slate-300 text-green-600 focus:ring-2 focus:ring-green-200 disabled:cursor-not-allowed disabled:opacity-60"
             />
@@ -189,23 +168,23 @@ export default function TodoItem({ todo, userId, index, onUpdated, onDeleted }: 
                   value={title}
                   onChange={(event) => setTitle(event.target.value)}
                   onKeyDown={handleEditKeyDown}
-                  disabled={loading}
+                  disabled={pending}
                   className="w-full rounded-lg border border-blue-300 px-3 py-2 text-slate-900 outline-none focus:ring-2 focus:ring-blue-200"
                   aria-label="TODO を編集"
                 />
                 <div className="flex gap-2">
                   <button
                     type="button"
-                    onClick={() => void handleSaveEdit()}
-                    disabled={loading}
+                    onClick={handleSaveEdit}
+                    disabled={pending}
                     className="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    {loading ? "保存中..." : "保存"}
+                    {pending ? "保存中..." : "保存"}
                   </button>
                   <button
                     type="button"
                     onClick={cancelEditing}
-                    disabled={loading}
+                    disabled={pending}
                     className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     キャンセル
@@ -234,15 +213,15 @@ export default function TodoItem({ todo, userId, index, onUpdated, onDeleted }: 
               <button
                 type="button"
                 onClick={startEditing}
-                disabled={loading}
+                disabled={pending}
                 className="rounded-lg px-2 py-1 text-sm font-medium text-blue-600 transition hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 編集
               </button>
               <button
                 type="button"
-                onClick={() => void handleDelete()}
-                disabled={loading}
+                onClick={handleDelete}
+                disabled={pending}
                 className="rounded-lg px-2 py-1 text-sm font-medium text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 削除

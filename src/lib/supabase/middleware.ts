@@ -1,6 +1,11 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
+/**
+ * 認証セッションを更新し、未ログインの /todos アクセスを /login へ、
+ * ログイン済みの /login・/signup アクセスを /todos へリダイレクトする。
+ * Supabase RLS は DB 側で user_id を検証するが、UI ルートの保護はここで行う。
+ */
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
     request,

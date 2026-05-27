@@ -1,6 +1,10 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { cookies } from "next/headers";
 
+/**
+ * Server Component / Server Action 用 Supabase クライアント。
+ * Cookie からセッションを読み取り、RLS によりログインユーザー自身の todos のみ操作可能。
+ */
 export async function createClient() {
   const cookieStore = await cookies();
 

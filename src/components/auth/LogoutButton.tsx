@@ -1,29 +1,25 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useState } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { useTransition } from "react";
+import { logoutAction } from "@/actions/auth";
 
 export default function LogoutButton() {
-  const router = useRouter();
-  const supabase = createClient();
-  const [loading, setLoading] = useState(false);
+  const [pending, startTransition] = useTransition();
 
-  async function handleLogout() {
-    setLoading(true);
-    await supabase.auth.signOut();
-    router.push("/login");
-    router.refresh();
+  function handleLogout() {
+    startTransition(async () => {
+      await logoutAction();
+    });
   }
 
   return (
     <button
       type="button"
       onClick={handleLogout}
-      disabled={loading}
+      disabled={pending}
       className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
     >
-      {loading ? "ログアウト中..." : "ログアウト"}
+      {pending ? "ログアウト中..." : "ログアウト"}
     </button>
   );
 }
